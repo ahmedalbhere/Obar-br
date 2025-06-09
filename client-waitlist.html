@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>قائمة الانتظار</title>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCJ4VhGD49H3RNifMf9VCRPnkALAxNpsOU",
+      authDomain: "project-2980864980936907935.firebaseapp.com",
+      databaseURL: "https://project-2980864980936907935-default-rtdb.firebaseio.com",
+      projectId: "project-2980864980936907935",
+      storageBucket: "project-2980864980936907935.appspot.com",
+      messagingSenderId: "580110751353",
+      appId: "1:580110751353:web:8f039f9b34e1709d4126a8"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const barberSelect = document.getElementById('barberSelect');
+    const listContainer = document.getElementById('waitlist');
+
+    function loadBarbers() {
+      const barbersRef = ref(db, 'barbers');
+      onValue(barbersRef, snapshot => {
+        barberSelect.innerHTML = '<option disabled selected>اختر الحلاق</option>';
+        snapshot.forEach(child => {
+          const name = child.key;
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          barberSelect.appendChild(option);
+        });
+      });
+    }
+
+    function showWaitlist(barberName) {
+      const waitlistRef = ref(db, `waitlist/${barberName}`);
+      onValue(waitlistRef, snapshot => {
+        listContainer.innerHTML = '';
+        if (snapshot.exists()) {
+          snapshot.forEach(child => {
+            const data = child.val();
+            const li = document.createElement('li');
+            li.textContent = `${data.name} - ${data.phone}`;
+            listContainer.appendChild(li);
+          });
+        } else {
+          listContainer.innerHTML = '<li>لا يوجد حجوزات حاليًا.</li>';
+        }
+      });
+    }
+
+    barberSelect.addEventListener('change', () => {
+      const barberName = barberSelect.value;
+      if (barberName) showWaitlist(barberName);
+    });
+
+    window.onload = loadBarbers;
+  </script>
+  <style>
+    body { font-family: "Cairo", sans-serif; direction: rtl; background: #f1f1f1; padding: 20px; text-align: center; }
+    select, ul { margin-top: 20px; padding: 10px; font-size: 16px; }
+    li { background: #fff; margin: 10px auto; max-width: 400px; padding: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body>
+  <h2>عرض قائمة الانتظار</h2>
+  <select id="barberSelect"></select>
+  <ul id="waitlist"></ul>
+</body>
+</html>
