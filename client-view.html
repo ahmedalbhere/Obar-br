@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>عرض قائمة الانتظار</title>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCJ4VhGD49H3RNifMf9VCRPnkALAxNpsOU",
+      authDomain: "project-2980864980936907935.firebaseapp.com",
+      databaseURL: "https://project-2980864980936907935-default-rtdb.firebaseio.com",
+      projectId: "project-2980864980936907935",
+      storageBucket: "project-2980864980936907935.appspot.com",
+      messagingSenderId: "580110751353",
+      appId: "1:580110751353:web:8f039f9b34e1709d4126a8"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const barbersContainer = document.getElementById("barbersContainer");
+    const searchInput = document.getElementById("searchBar");
+
+    function loadBarbers() {
+      const barbersRef = ref(db, 'barbers');
+      onValue(barbersRef, snapshot => {
+        barbersContainer.innerHTML = '';
+        snapshot.forEach(child => {
+          const name = child.key;
+          const data = child.val();
+          const card = document.createElement('div');
+          card.className = 'barber-card';
+
+          const img = document.createElement('img');
+          img.src = data.imageUrl || 'https://via.placeholder.com/100';
+          img.alt = name;
+
+          const title = document.createElement('h3');
+          title.textContent = name;
+
+          const status = document.createElement('p');
+          status.textContent = data.isOpen ? 'مفتوح' : 'مغلق';
+          status.style.color = data.isOpen ? 'green' : 'red';
+
+          const counter = document.createElement('p');
+          counter.id = 'count-' + name;
+          counter.textContent = 'جاري التحميل...';
+
+          card.appendChild(img);
+          card.appendChild(title);
+          card.appendChild(status);
+          card.appendChild(counter);
+
+          card.onclick = () => loadWaitlist(name);
+          barbersContainer.appendChild(card);
+
+          // Load count
+          onValue(ref(db, 'waitlist/' + name), listSnap => {
+            let count = 0;
+            listSnap.forEach(() => count++);
+            document.getElementById('count-' + name).textContent = `عدد المنتظرين: ${count}`;
+          });
+        });
+      });
+    }
+
+    function loadWaitlist(barberName) {
+      const waitlistRef = ref(db, `waitlist/${barberName}`);
+      const modal = document.getElementById('waitlistModal');
+      const list = document.getElementById('waitlistList');
+      document.getElementById('modalTitle').textContent = `قائمة الانتظار لـ ${barberName}`;
+      list.innerHTML = '';
+      onValue(waitlistRef, snapshot => {
+        list.innerHTML = '';
+        if (!snapshot.exists()) {
+          list.innerHTML = '<li>لا يوجد حجوزات حالياً</li>';
+        } else {
+          snapshot.forEach(child => {
+            const data = child.val();
+            const li = document.createElement('li');
+            li.textContent = `${data.name} - ${data.phone}`;
+            list.appendChild(li);
+          });
+        }
+      });
+      modal.style.display = 'block';
+    }
+
+    document.getElementById('closeModal').onclick = () => {
+      document.getElementById('waitlistModal').style.display = 'none';
+    };
+
+    searchInput.addEventListener('input', () => {
+      const query = searchInput.value.toLowerCase();
+      const cards = document.querySelectorAll('.barber-card');
+      cards.forEach(card => {
+        const name = card.querySelector('h3').textContent.toLowerCase();
+        card.style.display = name.includes(query) ? 'block' : 'none';
+      });
+    });
+
+    window.onload = loadBarbers;
+  </script>
+
+  <style>
+    body { font-family: "Cairo", sans-serif; direction: rtl; background: #f0f0f0; padding: 20px; text-align: center; }
+    #searchBar { width: 80%; padding: 10px; font-size: 16px; margin-bottom: 20px; }
+    .barber-card {
+      display: inline-block; background: white; margin: 10px; padding: 10px; border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1); width: 200px; cursor: pointer;
+    }
+    .barber-card img { width: 100%; border-radius: 8px; }
+    .barber-card h3 { margin: 10px 0 5px; }
+    .barber-card p { margin: 4px 0; }
+
+    #waitlistModal { display: none; position: fixed; top: 0; right: 0; left: 0; bottom: 0; background: rgba(0,0,0,0.6); }
+    #waitlistContent { background: white; padding: 20px; max-width: 400px; margin: 100px auto; border-radius: 10px; }
+    #waitlistList li { background: #eee; margin: 5px 0; padding: 10px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h2>عرض الحلاقين وقائمة الانتظار</h2>
+  <input type="text" id="searchBar" placeholder="ابحث عن اسم الحلاق...">
+  <div id="barbersContainer"></div>
+
+  <div id="waitlistModal">
+    <div id="waitlistContent">
+      <h3 id="modalTitle"></h3>
+      <ul id="waitlistList"></ul>
+      <button id="closeModal">إغلاق</button>
+    </div>
+  </div>
+</body>
+</html>
