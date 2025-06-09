@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>حجز صالون الحلاقة</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getDatabase, ref, push, onValue, remove, set, get, update } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+    import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCJ4VhGD49H3RNifMf9VCRPnkALAxNpsOU",
+      authDomain: "project-2980864980936907935.firebaseapp.com",
+      databaseURL: "https://project-2980864980936907935-default-rtdb.firebaseio.com",
+      projectId: "project-2980864980936907935",
+      storageBucket: "project-2980864980936907935.appspot.com",
+      messagingSenderId: "580110751353",
+      appId: "1:580110751353:web:8f039f9b34e1709d4126a8"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const storage = getStorage(app);
+    const auth = getAuth(app);
+
+    onAuthStateChanged(auth, user => {
+      if (user && localStorage.getItem("userType") === "barber") {
+        const uid = user.uid;
+        get(ref(db, "barbers/" + uid)).then(snapshot => {
+          if (snapshot.exists()) {
+            document.getElementById("welcome").style.display = "none";
+            document.getElementById("barber-panel").style.display = "block";
+            startBarberPanel(uid);
+          }
+        });
+      } else {
+        document.getElementById("welcome").style.display = "block";
+      }
+    });
+
+    window.selectUser = function(type) {
+      if (type === "barber") {
+        document.getElementById("welcome").style.display = "none";
+        document.getElementById("barber-login").style.display = "block";
+      } else {
+        document.getElementById("welcome").style.display = "none";
+        document.getElementById("client-panel").style.display = "block";
+        loadBarbers();
+      }
+    };
+
+    window.registerBarber = async function() {
+      const email = document.getElementById("barberEmail").value;
+      const password = document.getElementById("barberPassword").value;
+      const name = document.getElementById("barberName").value;
+      const phone = document.getElementById("barberPhone").value;
+      const imageFile = document.getElementById("barberImage").files[0];
+
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const uid = userCredential.user.uid;
+
+        let imageUrl = "";
+        if (imageFile) {
+          const imgRef = sRef(storage, "barbers/" + uid);
+          await uploadBytes(imgRef, imageFile);
+          imageUrl = await getDownloadURL(imgRef);
+        }
+
+        await set(ref(db, "barbers/" + uid), {
+          name, phone, imageUrl, isOpen: true
+        });
+
+        localStorage.setItem("userType", "barber");
+      } catch (error) {
+        alert("خطأ في التسجيل: " + error.message);
+      }
+    };
+
+    async function loadBarbers() {
+      const container = document.getElementById("barbersList");
+      container.innerHTML = "";
+      onValue(ref(db, "barbers"), snapshot => {
+        container.innerHTML = "";
+        snapshot.forEach(child => {
+          const barber = child.val();
+          const barberId = child.key;
+
+          const card = document.createElement("div");
+          card.className = "barber-card";
+          card.innerHTML = `
+            <img src="${barber.imageUrl || 'https://via.placeholder.com/150'}" />
+            <h3>${barber.name}</h3>
+            <p>${barber.isOpen ? '✅ مفتوح' : '🚫 مغلق'}</p>
+            <div id="count-${barberId}">...جاري التحميل</div>
+            <button onclick="bookFor('${barberId}', '${barber.name}')">احجز</button>
+          `;
+          container.appendChild(card);
+
+          onValue(ref(db, `waitlist/${barberId}`), snap => {
+            const count = snap.size;
+            document.getElementById(`count-${barberId}`).textContent = `عدد الزبائن: ${count}`;
+          });
+        });
+      });
+    }
+
+    window.bookFor = function(barberId, barberName) {
+      const name = prompt("اسمك؟");
+      const phone = prompt("رقم الهاتف؟");
+      if (name && phone) {
+        push(ref(db, `waitlist/${barberId}`), { name, phone });
+        alert("تم الحجز عند " + barberName);
+      }
+    };
+
+    function startBarberPanel(uid) {
+      const list = document.getElementById("waitlist");
+      const toggle = document.getElementById("toggleStatus");
+
+      onValue(ref(db, `waitlist/${uid}`), snapshot => {
+        list.innerHTML = "";
+        snapshot.forEach(child => {
+          const val = child.val();
+          const li = document.createElement("li");
+          li.textContent = `${val.name} - ${val.phone}`;
+          const btn = document.createElement("button");
+          btn.textContent = "❌";
+          btn.onclick = () => remove(ref(db, `waitlist/${uid}/${child.key}`));
+          li.appendChild(btn);
+          list.appendChild(li);
+        });
+      });
+
+      toggle.onclick = async () => {
+        const barberRef = ref(db, `barbers/${uid}`);
+        const snap = await get(barberRef);
+        if (snap.exists()) {
+          const current = snap.val().isOpen;
+          await update(barberRef, { isOpen: !current });
+        }
+      };
+    }
+  </script>
+  <style>
+    body { font-family: 'Cairo', sans-serif; background: #f5f5f5; direction: rtl; text-align: center; padding: 20px; }
+    .panel { display: none; max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+    button, input { padding: 10px; margin: 10px 0; border-radius: 6px; width: 100%; }
+    .barber-card { display: inline-block; width: 200px; margin: 10px; padding: 10px; background: white; border-radius: 10px; box-shadow: 0 0 8px #ccc; }
+    .barber-card img { width: 100%; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div id="welcome" class="panel">
+    <h2>مرحبًا بك</h2>
+    <button onclick="selectUser('client')">أنا زبون</button>
+    <button onclick="selectUser('barber')">أنا حلاق</button>
+  </div>
+
+  <div id="barber-login" class="panel">
+    <h3>تسجيل صالون جديد</h3>
+    <input id="barberEmail" placeholder="البريد الإلكتروني">
+    <input id="barberPassword" type="password" placeholder="كلمة المرور">
+    <input id="barberName" placeholder="اسم الصالون">
+    <input id="barberPhone" placeholder="رقم الهاتف">
+    <input type="file" id="barberImage" accept="image/*">
+    <button onclick="registerBarber()">تسجيل الدخول</button>
+  </div>
+
+  <div id="client-panel" class="panel">
+    <h3>اختر الحلاق</h3>
+    <div id="barbersList"></div>
+  </div>
+
+  <div id="barber-panel" class="panel">
+    <h3>قائمة الانتظار</h3>
+    <ul id="waitlist"></ul>
+    <button id="toggleStatus">تبديل الحالة (فتح/غلق)</button>
+  </div>
+</body>
+</html>
